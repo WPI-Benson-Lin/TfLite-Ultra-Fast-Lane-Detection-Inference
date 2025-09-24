@@ -130,8 +130,10 @@ class UltrafastLaneDetector():
 		processed_output = output[:, ::-1, :]
 
 		prob = scipy.special.softmax(processed_output[:-1, :, :], axis=0)
-		idx = np.arange(cfg.griding_num) + 1
-		idx = idx.reshape(-1, 1, 1)
+		# idx = np.arange(cfg.griding_num) + 1
+		# idx = idx.reshape(-1, 1, 1)
+		num_grids = prob.shape[0]
+		idx = np.arange(1, num_grids + 1).reshape(-1, 1, 1)
 		loc = np.sum(prob * idx, axis=0)
 		processed_output = np.argmax(processed_output, axis=0)
 		loc[processed_output == cfg.griding_num] = 0
@@ -160,7 +162,10 @@ class UltrafastLaneDetector():
 				lanes_detected.append(False)
 
 			lane_points_mat.append(lane_points)
-		return np.array(lane_points_mat), np.array(lanes_detected)
+		# return np.array(lane_points_mat), np.array(lanes_detected) BBB
+			max_len = max(len(lane) for lane in lane_points_mat)
+			lane_points_mat_pad = [lane + [(-1, -1)] * (max_len - len(lane)) for lane in lane_points_mat]
+		return np.array(lane_points_mat_pad), np.array(lanes_detected)
 
 	@staticmethod
 	def draw_lanes(input_img, lane_points_mat, lanes_detected, cfg, draw_points=True):

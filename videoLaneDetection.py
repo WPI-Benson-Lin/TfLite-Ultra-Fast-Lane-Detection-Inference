@@ -8,10 +8,11 @@ model_type = ModelType.TUSIMPLE
 # Initialize video
 # cap = cv2.VideoCapture("video.mp4")
 
-videoUrl = 'https://youtu.be/2CIxM7x-Clc'
-videoPafy = pafy.new(videoUrl)
-print(videoPafy.streams)
-cap = cv2.VideoCapture(videoPafy.streams[-1].url)
+#videoUrl = 'https://youtu.be/2CIxM7x-Clc'
+#videoPafy = pafy.new(videoUrl)
+#print(videoPafy.streams)
+#cap = cv2.VideoCapture(videoPafy.streams[-1].url)
+cap = cv2.VideoCapture("Lane.mp4")
 
 # Initialize lane detection model
 lane_detector = UltrafastLaneDetector(model_path, model_type)
