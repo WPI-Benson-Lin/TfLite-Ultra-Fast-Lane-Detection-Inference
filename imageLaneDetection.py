@@ -1,7 +1,8 @@
 import cv2
 from ultrafastLaneDetector import UltrafastLaneDetector, ModelType
 
-model_path = "models/model_float32.tflite"
+#model_path = "models/model_float32.tflite"
+model_path = "models/tu/saved_model_tusimple/model_full_integer_quant.tflite"
 model_type = ModelType.TUSIMPLE
 
 

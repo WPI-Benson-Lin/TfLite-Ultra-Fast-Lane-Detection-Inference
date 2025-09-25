@@ -6,8 +6,9 @@ import numpy as np
 
 try:
     from tflite_runtime.interpreter import Interpreter
-except:
+except Exception as e:
     from tensorflow.lite.python.interpreter import Interpreter
+    print("程式異常:", e)
 
 lane_colors = [(0,0,255),(0,255,0),(255,0,0),(0,255,255)]
 
@@ -76,32 +77,39 @@ class UltrafastLaneDetector():
 		output = self.inference(input_tensor)
 
 		# Process output data
-		self.lanes_points, self.lanes_detected = self.process_output(output, self.cfg)
+		self.lanes_points, self.lanes_detected = self.process_output(output, self.cfg, self.output_details)
+		#print("lanes_detected:", self.lanes_detected)
+		#print("lanes_points:", self.lanes_points)
 
 		# # Draw depth image
-		visualization_img = self.draw_lanes(image, self.lanes_points, self.lanes_detected, self.cfg, draw_points)
+		#visualization_img = self.draw_lanes(image, self.lanes_points, self.lanes_detected, self.cfg, draw_points)
+		visualization_img = type(self).draw_lanes(image, self.lanes_points, self.lanes_detected, self.cfg, draw_points)
 
 		return visualization_img
 
 	def prepare_input(self, image):
 		img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 		self.img_height, self.img_width, self.img_channels = img.shape
-
+	
 		# Input values should be from -1 to 1 with a size of 288 x 800 pixels
-		img_input = cv2.resize(img, (self.input_width,self.input_height)).astype(np.float32)
-		
-		# Scale input pixel values to -1 to 1
-		mean=[0.485, 0.456, 0.406]
-		std=[0.229, 0.224, 0.225]
-
-		img_input = ((img_input/ 255.0 - mean) / std).astype(np.float32)
-		img_input = img_input[np.newaxis,:,:,:]      
-
+		img_input = cv2.resize(img, (self.input_width, self.input_height)).astype(np.float32)
+	
+		if self.input_dtype == np.float32:
+			# Scale input pixel values to -1 to 1
+			mean = [0.485, 0.456, 0.406]
+			std = [0.229, 0.224, 0.225]
+			img_input = img_input.astype(np.float32)
+			img_input = ((img_input / 255.0 - mean) / std).astype(np.float32)
+		else:
+			img_input = img_input.astype(np.uint8)
+	
+		img_input = img_input[np.newaxis, :, :, :]
 		return img_input
 
 	def getModel_input_details(self):
 		self.input_details = self.interpreter.get_input_details()
 		input_shape = self.input_details[0]['shape']
+		self.input_dtype = self.input_details[0]['dtype']
 		self.input_height = input_shape[1]
 		self.input_width = input_shape[2]
 		self.channels = input_shape[3]
@@ -120,15 +128,29 @@ class UltrafastLaneDetector():
 		output = self.interpreter.get_tensor(self.output_details[0]['index'])
 
 		output = output.reshape(self.num_anchors, self.num_lanes, self.num_points)
+
+		#print("output shape:", output.shape)
+		#print("output sample:", output.flatten()[:20])
+		#print("output has NaN:", np.isnan(output).any())
+		#print("output has Inf:", np.isinf(output).any())
+		#print("output dtype:", output.dtype)
 		return output
 
 
 	@staticmethod
-	def process_output(output, cfg):		
-
-		# Parse the output of the model to get the lane information
+	def process_output(output, cfg, output_details=None):
+		# 量化模型反量化
+		if output.dtype == np.uint8 or output.dtype == np.int8:
+			if output_details is not None:
+				scale = output_details[0]['quantization'][0]
+				zero_point = output_details[0]['quantization'][1]
+			else:
+				scale = 1.0
+				zero_point = 0
+			output = (output.astype(np.float32) - zero_point) * scale
 		processed_output = output[:, ::-1, :]
 
+		#print("processed_output (before softmax) min/max:", np.nanmin(processed_output), np.nanmax(processed_output))
 		prob = scipy.special.softmax(processed_output[:-1, :, :], axis=0)
 		# idx = np.arange(cfg.griding_num) + 1
 		# idx = idx.reshape(-1, 1, 1)
@@ -161,6 +183,9 @@ class UltrafastLaneDetector():
 			else:
 				lanes_detected.append(False)
 
+			#print("processed_output shape:", processed_output.shape)
+			#print("processed_output sample:", processed_output[:10, :])
+
 			lane_points_mat.append(lane_points)
 		# return np.array(lane_points_mat), np.array(lanes_detected) BBB
 			max_len = max(len(lane) for lane in lane_points_mat)
@@ -169,30 +194,32 @@ class UltrafastLaneDetector():
 
 	@staticmethod
 	def draw_lanes(input_img, lane_points_mat, lanes_detected, cfg, draw_points=True):
-		# Write the detected line points in the image
-		visualization_img = cv2.resize(input_img, (cfg.img_w, cfg.img_h), interpolation = cv2.INTER_AREA)
+		visualization_img = cv2.resize(input_img, (cfg.img_w, cfg.img_h), interpolation=cv2.INTER_AREA)
+	
+		# 自動選擇最左和最右的有效車道來填色
+		valid_lanes = [i for i, detected in enumerate(lanes_detected) if detected]
+		if lanes_detected[1] and lanes_detected[2]:
+			left_lane = np.array([pt for pt in lane_points_mat[1] if pt[0] >= 0 and pt[1] >= 0], dtype=np.int32)
+			right_lane = np.array([pt for pt in lane_points_mat[2] if pt[0] >= 0 and pt[1] >= 0], dtype=np.int32)
+			if left_lane.shape[0] > 1 and right_lane.shape[0] > 1:
+				# 用左車道全部點 + 右車道全部點（反向）組成多邊形
+				pts = np.vstack((left_lane, np.flipud(right_lane)))
+				mask = visualization_img.copy()
+				cv2.fillPoly(mask, [pts], color=(255, 200, 255))
+				visualization_img = cv2.addWeighted(visualization_img, 0.7, mask, 0.3, 0)
 
-		# Draw a mask for the current lane
-		if(lanes_detected[1] and lanes_detected[2]):
-			
-			lane_segment_img = visualization_img.copy()
-			
-			cv2.fillPoly(lane_segment_img, pts = [np.vstack((lane_points_mat[1],np.flipud(lane_points_mat[2])))], color =(255,191,0))
-			visualization_img = cv2.addWeighted(visualization_img, 0.7, lane_segment_img, 0.3, 0)
+		# 畫所有偵測到的車道線
+		for lane_num, lane_points in enumerate(lane_points_mat):
+			pts = np.array([pt for pt in lane_points if pt[0] >= 0 and pt[1] >= 0], dtype=np.int32)
+			if pts.shape[0] > 1:
+				cv2.polylines(visualization_img, [pts], isClosed=False, color=lane_colors[lane_num % len(lane_colors)], thickness=2)
 
-		if(draw_points):
-			for lane_num,lane_points in enumerate(lane_points_mat):
+		# 畫所有偵測到的車道點
+		if draw_points:
+			for lane_num, lane_points in enumerate(lane_points_mat):
 				for lane_point in lane_points:
-					cv2.circle(visualization_img, (lane_point[0],lane_point[1]), 3, lane_colors[lane_num], -1)
+					if lane_point[0] >= 0 and lane_point[1] >= 0:
+						cv2.circle(visualization_img, (lane_point[0], lane_point[1]), 3, lane_colors[lane_num % len(lane_colors)], -1)
 
 		return visualization_img
-
-
-	
-
-
-
-
-
-
 
