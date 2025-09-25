@@ -3,7 +3,7 @@ import pafy
 from ultrafastLaneDetector import UltrafastLaneDetector, ModelType
 
 #model_path = "models/model_float32.tflite"
-model_path = "models/tu/saved_model_tusimple/model_full_integer_quant.tflite"
+model_path = "models/model_full_integer_quant.tflite"
 model_type = ModelType.TUSIMPLE
 
 # Initialize video
@@ -13,7 +13,15 @@ model_type = ModelType.TUSIMPLE
 #videoPafy = pafy.new(videoUrl)
 #print(videoPafy.streams)
 #cap = cv2.VideoCapture(videoPafy.streams[-1].url)
-cap = cv2.VideoCapture("Lane.mp4")
+#cap = cv2.VideoCapture("Lane.mp4", cv2.CAP_GSTREAMER)
+cap = cv2.VideoCapture('filesrc location=Lane.mp4 ! decodebin3 ! videoconvert ! appsink', cv2.CAP_GSTREAMER )
+
+#print(cv2.getBuildInformation())
+
+if not cap.isOpened():
+	print(" OpenCV open fail")
+else:
+	print(" OpenCV open ok")
 
 # Initialize lane detection model
 lane_detector = UltrafastLaneDetector(model_path, model_type)
