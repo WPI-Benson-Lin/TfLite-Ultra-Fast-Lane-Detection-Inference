@@ -5,7 +5,9 @@ from enum import Enum
 import numpy as np
 
 try:
-    from tflite_runtime.interpreter import Interpreter
+    #from tflite_runtime.interpreter import Interpreter
+    from tflite_runtime.interpreter import Interpreter, load_delegate
+
 except Exception as e:
     from tensorflow.lite.python.interpreter import Interpreter
     print("程式異常:", e)
@@ -62,7 +64,11 @@ class UltrafastLaneDetector():
 
 	def initialize_model(self, model_path):
 
-		self.interpreter = Interpreter(model_path=model_path)
+		#self.interpreter = Interpreter(model_path=model_path)
+
+		print('[INFO] set NPU interpreter init')
+		self.interpreter = Interpreter(model_path=model_path, experimental_delegates=[load_delegate('/usr/lib/libneutron_delegate.so')])
+
 		self.interpreter.allocate_tensors()
 
 		# Get model info

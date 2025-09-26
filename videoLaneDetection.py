@@ -3,7 +3,9 @@ import pafy
 from ultrafastLaneDetector import UltrafastLaneDetector, ModelType
 
 #model_path = "models/model_float32.tflite"
-model_path = "models/model_full_integer_quant.tflite"
+#model_path = "models/model_full_integer_quant.tflite"
+#model_path = "models/model_integer_quant.tflite"
+model_path = "models/model_full_integer_quant_converted.tflite"
 model_type = ModelType.TUSIMPLE
 
 # Initialize video
