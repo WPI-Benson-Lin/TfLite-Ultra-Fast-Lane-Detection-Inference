@@ -2,14 +2,15 @@ import cv2
 
 from ultrafastLaneDetector import UltrafastLaneDetector, ModelType
 
-model_path = "models/model_float32.tflite"
+#model_path = "models/model_float32.tflite"
+model_path = "models/model_full_integer_quant_converted.tflite"
 model_type = ModelType.TUSIMPLE
 
 # Initialize lane detection model
 lane_detector = UltrafastLaneDetector(model_path, model_type)
 
 # Initialize webcam
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(13)
 cv2.namedWindow("Detected lanes", cv2.WINDOW_NORMAL)
 
 while(True):
